@@ -1,9 +1,14 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
+)
+
+const (
+	UnsupportedVersion = 35
 )
 
 func main() {
@@ -22,9 +27,18 @@ func main() {
 	data := make([]byte, 1024)
 	conn.Read(data)
 
-	resp := make([]byte, 8)
-	copy(resp, []byte{0, 0, 0, 0})
-	copy(resp[4:], data[8:13])
+	resp := make([]byte, 10)
+
+	// message_size
+	copy(resp[0:4], []byte{0, 0, 0, 0})
+	// corelation_id
+	copy(resp[4:8], data[8:13])
+
+	version := int16(binary.BigEndian.Uint16(data[6:8]))
+	if version > 4 || version < 0 {
+		// error_code
+		copy(resp[8:10], []byte{0, 35})
+	}
 
 	conn.Write(resp)
 }
