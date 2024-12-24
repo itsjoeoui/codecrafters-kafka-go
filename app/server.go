@@ -24,7 +24,7 @@ func main() {
 
 	resp := make([]byte, 8)
 	copy(resp, []byte{0, 0, 0, 0})
-	copy(resp, data[8:13])
+	copy(resp[4:], data[8:13])
 
 	conn.Write(resp)
 }
