@@ -8,8 +8,25 @@ import (
 )
 
 const (
-	UnsupportedVersion = 35
+	ErrUnsupportedVersion = 35
 )
+
+type Request struct {
+	Version       int16
+	CorrelationId int32
+}
+
+func ParseRequest(data []byte) Request {
+	return Request{
+		Version:       int16(binary.BigEndian.Uint16(data[6:8])),
+		CorrelationId: int32(binary.BigEndian.Uint32(data[8:12])),
+	}
+}
+
+func WriteResponse(conn net.Conn, resp []byte) {
+	binary.Write(conn, binary.BigEndian, int32(len(resp)))
+	binary.Write(conn, binary.BigEndian, resp)
+}
 
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:9092")
@@ -27,18 +44,29 @@ func main() {
 	data := make([]byte, 1024)
 	conn.Read(data)
 
-	resp := make([]byte, 10)
+	request := ParseRequest(data)
 
-	// message_size
-	copy(resp[0:4], []byte{0, 0, 0, 0})
-	// corelation_id
-	copy(resp[4:8], data[8:13])
+	if request.Version < 0 || request.Version > 4 {
+		resp := make([]byte, 6)
+		binary.BigEndian.PutUint32(resp, uint32(request.CorrelationId))
+		binary.BigEndian.PutUint16(resp[4:], uint16(ErrUnsupportedVersion))
 
-	version := int16(binary.BigEndian.Uint16(data[6:8]))
-	if version > 4 || version < 0 {
-		// error_code
-		copy(resp[8:10], []byte{0, 35})
+		WriteResponse(conn, resp)
+		os.Exit(1)
 	}
 
-	conn.Write(resp)
+	// build the response
+	resp := make([]byte, 19)
+
+	binary.BigEndian.PutUint32(resp[0:4], uint32(request.CorrelationId))
+	binary.BigEndian.PutUint16(resp[4:6], uint16(0))
+	resp[6] = 2
+	binary.BigEndian.PutUint16(resp[7:9], 18)
+	binary.BigEndian.PutUint16(resp[9:11], 3)
+	binary.BigEndian.PutUint16(resp[11:13], 4)
+	resp[13] = 0
+	binary.BigEndian.PutUint32(resp[14:18], 0)
+	resp[18] = 0
+
+	WriteResponse(conn, resp)
 }
