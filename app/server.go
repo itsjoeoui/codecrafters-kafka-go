@@ -24,7 +24,9 @@ func ParseRequest(data []byte) Request {
 }
 
 func WriteResponse(conn net.Conn, resp []byte) {
+	// the first 4 bytes of the response should be the length of the response
 	binary.Write(conn, binary.BigEndian, int32(len(resp)))
+	// then we write the response
 	binary.Write(conn, binary.BigEndian, resp)
 }
 
@@ -47,9 +49,12 @@ func main() {
 	request := ParseRequest(data)
 
 	if request.Version < 0 || request.Version > 4 {
+		// Invalid Version
 		resp := make([]byte, 6)
-		binary.BigEndian.PutUint32(resp, uint32(request.CorrelationId))
-		binary.BigEndian.PutUint16(resp[4:], uint16(ErrUnsupportedVersion))
+		// 4 bytes for correlation_id
+		binary.BigEndian.PutUint32(resp[0:4], uint32(request.CorrelationId))
+		// 2 bytes for error code
+		binary.BigEndian.PutUint16(resp[4:6], uint16(ErrUnsupportedVersion))
 
 		WriteResponse(conn, resp)
 		os.Exit(1)
@@ -58,8 +63,13 @@ func main() {
 	// build the response
 	resp := make([]byte, 19)
 
+	// 4 bytes for correlation_id
 	binary.BigEndian.PutUint32(resp[0:4], uint32(request.CorrelationId))
+	// 2 bytes for error code
 	binary.BigEndian.PutUint16(resp[4:6], uint16(0))
+
+	// TODO: some guy reversed engineered this on the forum, no official instructions yet
+	// https://forum.codecrafters.io/t/question-about-handle-apiversions-requests-stage/1743/4
 	resp[6] = 2
 	binary.BigEndian.PutUint16(resp[7:9], 18)
 	binary.BigEndian.PutUint16(resp[9:11], 3)
